@@ -23,6 +23,10 @@
         .login-card {
             @apply bg-white p-8 rounded-xl shadow-2xl max-w-sm w-full;
         }
+        
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
 
         /* --- MOBILE RESPONSIVE STYLES --- */
         @media (max-width: 767px) {
@@ -114,8 +118,11 @@
                 pelanggan: [],
                 accessPoints: [],
                 pengaturan: { 
-                    biayaLanggananDefault: 50000, 
-                    passwordHistory: [] 
+                    biayaLanggananBaru: 50000,
+                    biayaLanggananRegular: 20000,
+                    passwordHistory: [],
+                    clipboardPendaftaran: `Halo, untuk pendaftaran WiFi, silakan isi data berikut:\n\nNama Lengkap:\nNomor Kamar:\nNomor WA:`,
+                    clipboardPembayaran: `Pembayaran WiFi bisa transfer ke:\nBCA: 1234567890 a/n Fulan\nDana/OVO: 081234567890 a/n Fulan\n\nJangan lupa kirim bukti transfer ya. Makasih!`
                 },
                 pengeluaran: [],
                 pemasukanLain: [],
@@ -123,6 +130,8 @@
                 editId: null,
                 selectedMonth: getBulanTahunKunci(new Date()),
                 activeDropdown: null,
+                pelangganSort: { key: 'nama', direction: 'asc' },
+                pelangganFilter: { status: 'all', apId: 'all' },
             };
             
             // --- IKON SVG ---
@@ -155,6 +164,8 @@
                 pieChart: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>`,
                 externalLink: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>`,
                 refresh: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
+                userPlus: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>`,
+                clipboard: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>`,
             };
             
              // --- NAVIGASI ---
@@ -174,8 +185,37 @@
                 const date = new Date(year, month - 1);
                 return date.toLocaleString('id-ID', { month: 'long', year: 'numeric' });
             };
-            const formatTimestamp = (ts) => ts ? ts.toDate().toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' }) : 'N/A';
+            const formatTimestamp = (ts, style = 'long') => {
+                 if (!ts) return 'N/A';
+                 const date = ts.toDate();
+                 if (style === 'long') {
+                     return date.toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'short' });
+                 }
+                 if (style === 'relative') {
+                     const seconds = Math.floor((new Date() - date) / 1000);
+                     let interval = seconds / 31536000;
+                     if (interval > 1) return Math.floor(interval) + " tahun lalu";
+                     interval = seconds / 2592000;
+                     if (interval > 1) return Math.floor(interval) + " bulan lalu";
+                     interval = seconds / 86400;
+                     if (interval > 1) return Math.floor(interval) + " hari lalu";
+                     interval = seconds / 3600;
+                     if (interval > 1) return Math.floor(interval) + " jam lalu";
+                     interval = seconds / 60;
+                     if (interval > 1) return Math.floor(interval) + " menit lalu";
+                     return "Baru saja";
+                 }
+                 return date.toLocaleString('id-ID');
+            };
             
+            const formatWhatsappNumber = (phone) => {
+                let cleaned = (phone || '').replace(/\D/g, '');
+                if (cleaned.startsWith('0')) {
+                    cleaned = '62' + cleaned.substring(1);
+                } 
+                return cleaned;
+            };
+
             const generateRobustPassword = (length = 10) => {
                 const upper = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
                 const lower = 'abcdefghkmnpqrstuvwxyz';
@@ -199,8 +239,33 @@
                 state.pengeluaran.forEach(p => {
                     if(p.tanggal) months.add(p.tanggal.slice(0, 7));
                 });
+                months.add(getBulanTahunKunci(new Date()));
                 return Array.from(months).sort().reverse();
             }
+            
+             const handleCopyText = (text, button) => {
+                if (!text) return;
+                const textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-9999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    const originalText = button.innerHTML;
+                    button.innerHTML = 'Dicopy!';
+                    button.classList.add('bg-green-500', 'text-white');
+                    setTimeout(() => { 
+                        button.innerHTML = originalText; 
+                        button.classList.remove('bg-green-500', 'text-white');
+                    }, 2000);
+                } catch (err) {
+                    console.error('Gagal menyalin:', err);
+                }
+                document.body.removeChild(textArea);
+            };
 
             // --- FUNGSI RENDER UTAMA ---
             function renderApp() {
@@ -210,6 +275,7 @@
                 } else if (!state.isAuthorized) {
                     container.innerHTML = renderUnauthorizedScreen();
                 } else {
+                    const currentView = state.view;
                     container.innerHTML = `
                         ${renderMobileHeader()}
                         <div id="app" class="flex flex-col md:flex-row min-h-screen mobile-pb mobile-pt bg-gray-50">
@@ -220,13 +286,19 @@
                             ${renderMobileNav()}
                         </div>
                     `;
+                    if (currentView === 'pelanggan') {
+                        renderPelangganList();
+                    }
                 }
-                 // Add event listener to close dropdowns when clicking outside
                 document.addEventListener('click', (event) => {
                     if (!event.target.closest('.dropdown-container')) {
                         if (state.activeDropdown) {
                             state.activeDropdown = null;
-                            renderApp();
+                             if(state.view === 'pelanggan') {
+                                renderPelangganList();
+                            } else {
+                                renderApp();
+                            }
                         }
                     }
                 }, true);
@@ -337,62 +409,43 @@
             // --- RENDER KOMPONEN ---
             function renderDashboard() {
                 const now = new Date();
-                const namaBulanIni = getNamaBulanTahun(getBulanTahunKunci(now));
-                
                 const getGreeting = () => {
                     const hour = now.getHours();
                     if (hour < 12) return 'Pagi';
                     if (hour < 18) return 'Siang';
                     return 'Malam';
-                }
-                const formattedDate = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-
-                // Data bulan ini
-                const kunciBulanIni = getBulanTahunKunci(now);
-                const totalPemasukanBulanIni = state.pemasukanLain.filter(p => p.tanggal && p.tanggal.startsWith(kunciBulanIni)).reduce((s, p) => s + p.jumlah, 0) + state.pelanggan.filter(p => p.statusPembayaran?.[kunciBulanIni]?.status === 'lunas').reduce((s, p) => s + (p.statusPembayaran[kunciBulanIni].jumlah || 0), 0);
-                const totalPengeluaranBulanIni = state.pengeluaran.filter(p => p.tanggal && p.tanggal.startsWith(kunciBulanIni)).reduce((s, p) => s + p.jumlah, 0);
-                const labaBersihBulanIni = totalPemasukanBulanIni - totalPengeluaranBulanIni;
-
-                // Data bulan lalu
-                const bulanLalu = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-                const kunciBulanLalu = getBulanTahunKunci(bulanLalu);
-                const totalPemasukanBulanLalu = state.pemasukanLain.filter(p => p.tanggal && p.tanggal.startsWith(kunciBulanLalu)).reduce((s, p) => s + p.jumlah, 0) + state.pelanggan.filter(p => p.statusPembayaran?.[kunciBulanLalu]?.status === 'lunas').reduce((s, p) => s + (p.statusPembayaran[kunciBulanLalu].jumlah || 0), 0);
-
-                const getTrend = (current, previous) => {
-                    if (previous === 0 && current > 0) return { text: `+100%`, color: 'green', icon: icons.arrowUpRight };
-                    if (previous === 0) return { text: 'N/A', color: 'gray', icon: '' };
-                    const percentage = ((current - previous) / previous) * 100;
-                    if (percentage > 0) return { text: `+${percentage.toFixed(0)}%`, color: 'green', icon: icons.arrowUpRight };
-                    if (percentage < 0) return { text: `${percentage.toFixed(0)}%`, color: 'red', icon: icons.arrowDownRight };
-                    return { text: '0%', color: 'gray', icon: '' };
                 };
-                
-                const incomeTrend = getTrend(totalPemasukanBulanIni, totalPemasukanBulanLalu);
+                const formattedDate = now.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                const kunciBulanIni = getBulanTahunKunci(now);
 
-                // Status pembayaran pelanggan
+                // --- DATA CALCULATIONS ---
+                const totalPemasukanBulanIni = state.pemasukanLain.filter(p => p.tanggal && p.tanggal.startsWith(kunciBulanIni)).reduce((s, p) => s + p.jumlah, 0) + state.pelanggan.filter(p => p.statusPembayaran?.[kunciBulanIni]?.status === 'lunas').reduce((s, p) => s + (p.statusPembayaran[kunciBulanIni].jumlah || 0), 0);
                 const pelangganSudahBayar = state.pelanggan.filter(p => p.statusPembayaran?.[kunciBulanIni]?.status === 'lunas').length;
-                const totalPelanggan = state.pelanggan.length;
-                const pelangganBelumBayar = totalPelanggan - pelangganSudahBayar;
-                const persentaseBayar = totalPelanggan > 0 ? (pelangganSudahBayar / totalPelanggan) * 100 : 0;
+                const totalPelangganAktif = state.pelanggan.length;
+                
+                const lastPasswordUpdate = state.pengaturan.passwordHistory.length > 0
+                    ? [...state.pengaturan.passwordHistory].sort((a,b) => b.timestamp.seconds - a.timestamp.seconds)[0].timestamp
+                    : null;
 
-                // Aktivitas terbaru
-                const paymentTransactions = state.pelanggan.flatMap(p => 
+                // --- ROBUST RECENT ACTIVITIES (FINANCIAL ONLY) ---
+                const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                const paymentActivities = state.pelanggan.flatMap(p => 
                     Object.entries(p.statusPembayaran || {})
-                        .filter(([month, data]) => data.status === 'lunas' && data.tanggalBayar)
-                        .map(([month, data]) => ({
+                        .filter(([_, data]) => data.status === 'lunas' && data.tanggalBayar && data.tanggalBayar.toDate() > thirtyDaysAgo)
+                        .map(([_, data]) => ({
                             type: 'payment',
-                            deskripsi: `Bayaran dari ${p.nama}`,
+                            deskripsi: `Pembayaran dari ${p.nama}`,
                             jumlah: data.jumlah,
                             date: data.tanggalBayar.toDate(),
-                            dicatatOleh: data.dicatatOleh?.nama || 'Sistem'
+                            icon: icons.userCheck
                         }))
                 );
 
-                const recentActivities = [
-                    ...paymentTransactions,
-                    ...state.pemasukanLain.map(p => ({ ...p, type: 'income', date: new Date(p.tanggal) })),
-                    ...state.pengeluaran.map(p => ({ ...p, type: 'expense', date: new Date(p.tanggal) }))
-                ].sort((a,b) => b.date - a.date).slice(0, 5);
+                const financialActivities = [
+                    ...paymentActivities,
+                    ...state.pemasukanLain.filter(p => new Date(p.tanggal) > thirtyDaysAgo).map(p => ({ type: 'income', deskripsi: p.deskripsi, jumlah: p.jumlah, date: new Date(p.tanggal), icon: icons.plusCircle })),
+                    ...state.pengeluaran.filter(p => new Date(p.tanggal) > thirtyDaysAgo).map(p => ({ type: 'expense', deskripsi: p.deskripsi, jumlah: p.jumlah, date: new Date(p.tanggal), icon: icons.minusCircle }))
+                ].sort((a, b) => b.date - a.date).slice(0, 7);
 
                 return `
                     <div>
@@ -400,89 +453,92 @@
                             <h1 class="text-3xl font-bold text-gray-800">${getGreeting()}, ${state.user.displayName.split(' ')[0]}!</h1>
                             <p class="text-gray-500">${formattedDate}</p>
                         </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                             <div class="bg-gradient-to-br from-green-500 to-green-600 text-white p-6 rounded-2xl shadow-lg">
-                                <div class="flex justify-between items-center"><p class="font-semibold">Duit Masuk Bulan Ini</p>${icons.trendingUp.replace('width="24"','width="32"')}</div>
-                                <p class="text-4xl font-bold mt-2">${formatRupiah(totalPemasukanBulanIni)}</p>
-                                <div class="flex items-center text-sm mt-2 bg-green-700 bg-opacity-50 px-2 py-1 rounded-full w-fit">
-                                    <span class="mr-1">${incomeTrend.icon}</span> ${incomeTrend.text} vs bulan kemaren
-                                </div>
-                            </div>
-                             <div class="bg-gradient-to-br from-red-500 to-red-600 text-white p-6 rounded-2xl shadow-lg">
-                                <div class="flex justify-between items-center"><p class="font-semibold">Duit Keluar Bulan Ini</p>${icons.trendingDown.replace('width="24"','width="32"')}</div>
-                                <p class="text-4xl font-bold mt-2">${formatRupiah(totalPengeluaranBulanIni)}</p>
-                                <p class="text-sm mt-2 opacity-70">${namaBulanIni}</p>
-                            </div>
-                             <div class="bg-gradient-to-br from-blue-500 to-blue-600 text-white p-6 rounded-2xl shadow-lg">
-                                <div class="flex justify-between items-center"><p class="font-semibold">Untung Bersih</p>${icons.wallet.replace('width="24"','width="32"')}</div>
-                                <p class="text-4xl font-bold mt-2">${formatRupiah(labaBersihBulanIni)}</p>
-                                <p class="text-sm mt-2 opacity-70">${namaBulanIni}</p>
-                            </div>
+                        
+                        <!-- STATS CARDS -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                            <div class="bg-white p-6 rounded-2xl shadow-md flex items-center gap-5"><div class="bg-green-100 text-green-600 p-4 rounded-full">${icons.trendingUp}</div><div><p class="text-sm text-gray-500">Pemasukan Bulan Ini</p><p class="text-2xl font-bold">${formatRupiah(totalPemasukanBulanIni)}</p></div></div>
+                            <div class="bg-white p-6 rounded-2xl shadow-md flex items-center gap-5"><div class="bg-blue-100 text-blue-600 p-4 rounded-full">${icons.pieChart}</div><div><p class="text-sm text-gray-500">Status Pembayaran</p><p class="text-2xl font-bold">${pelangganSudahBayar} / ${totalPelangganAktif} <span class="text-base font-medium">Lunas</span></p></div></div>
+                            <div class="bg-white p-6 rounded-2xl shadow-md flex items-center gap-5"><div class="bg-yellow-100 text-yellow-600 p-4 rounded-full">${icons.users}</div><div><p class="text-sm text-gray-500">Total Anak Kos</p><p class="text-2xl font-bold">${totalPelangganAktif} <span class="text-base font-medium">Orang</span></p></div></div>
                         </div>
 
+                        <!-- MAIN CONTENT GRID -->
                         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div class="lg:col-span-2 bg-white p-6 rounded-2xl shadow-md">
-                                <h3 class="text-xl font-bold text-gray-800 mb-4">Aktivitas Terkini</h3>
-                                <div class="space-y-1">
-                                    ${recentActivities.length > 0 ? recentActivities.map(t => {
-                                        const activity = {
-                                            payment: { color: 'green', icon: icons.userCheck, prefix: '+' },
-                                            income: { color: 'teal', icon: icons.plusCircle, prefix: '+' },
-                                            expense: { color: 'red', icon: icons.minusCircle, prefix: '-' }
-                                        }[t.type];
-                                        return `
-                                        <div class="flex items-center p-3 rounded-lg hover:bg-gray-50">
-                                            <div class="p-2 bg-${activity.color}-100 text-${activity.color}-600 rounded-full mr-4">${activity.icon}</div>
-                                            <div class="flex-grow">
-                                                <p class="font-medium">${t.deskripsi}</p>
-                                                <p class="text-xs text-gray-400">
-                                                    ${t.date.toLocaleDateString('id-ID', {day: '2-digit', month: 'short'})}
-                                                    ${t.type === 'payment' ? ` • Dicatet sama ${t.dicatatOleh.split(' ')[0]}` : ''}
-                                                </p>
+                            <!-- Left Column: Activity & Clipboard -->
+                            <div class="lg:col-span-2 space-y-6">
+                                <div class="bg-white p-6 rounded-2xl shadow-md">
+                                    <h3 class="text-xl font-bold text-gray-800 mb-4">Aktivitas Keuangan Terkini</h3>
+                                    <div class="space-y-2">
+                                        ${financialActivities.length > 0 ? financialActivities.map(act => {
+                                            const colors = { payment: 'green', income: 'teal', expense: 'red' };
+                                            const color = colors[act.type] || 'gray';
+                                            return `
+                                            <div class="flex items-center p-3 rounded-lg hover:bg-gray-50">
+                                                <div class="p-3 bg-${color}-100 text-${color}-600 rounded-full mr-4">${act.icon}</div>
+                                                <div class="flex-grow">
+                                                    <p class="font-medium text-gray-800">${act.deskripsi}</p>
+                                                    <p class="text-xs text-gray-400">${formatTimestamp(Timestamp.fromDate(act.date), 'relative')}</p>
+                                                </div>
+                                                ${act.jumlah ? `<p class="font-bold text-${color}-600">${act.type === 'expense' ? '-' : '+'}${formatRupiah(act.jumlah)}</p>` : ''}
+                                            </div>`;
+                                        }).join('') : '<p class="text-gray-500 text-center py-8">Belum ada aktivitas baru.</p>'}
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-white p-6 rounded-2xl shadow-md">
+                                    <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">${icons.clipboard} Clipboard Cepat</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <label for="clipboard-pendaftaran" class="text-sm font-medium text-gray-700">Format Pendaftaran</label>
+                                            <textarea id="clipboard-pendaftaran" rows="5" class="input-style w-full text-sm">${state.pengaturan.clipboardPendaftaran || ''}</textarea>
+                                            <div class="flex gap-2 mt-2">
+                                                <button onclick="handleCopyText(document.getElementById('clipboard-pendaftaran').value, this)" class="btn btn-secondary btn-sm w-full text-xs">Copy</button>
+                                                <button onclick="handleUpdateClipboard()" class="btn btn-primary btn-sm w-full text-xs">Simpan</button>
                                             </div>
-                                            <p class="font-bold text-${activity.color}-600">${activity.prefix}${formatRupiah(t.jumlah)}</p>
-                                        </div>`
-                                    }).join('') : '<p class="text-gray-500 text-center py-8">Masih kosong, belum ada transaksi.</p>'}
+                                        </div>
+                                        <div>
+                                            <label for="clipboard-pembayaran" class="text-sm font-medium text-gray-700">Info Pembayaran</label>
+                                            <textarea id="clipboard-pembayaran" rows="5" class="input-style w-full text-sm">${state.pengaturan.clipboardPembayaran || ''}</textarea>
+                                             <div class="flex gap-2 mt-2">
+                                                <button onclick="handleCopyText(document.getElementById('clipboard-pembayaran').value, this)" class="btn btn-secondary btn-sm w-full text-xs">Copy</button>
+                                                <button onclick="handleUpdateClipboard()" class="btn btn-primary btn-sm w-full text-xs">Simpan</button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="space-y-6">
-                                <div class="bg-white p-6 rounded-2xl shadow-md">
-                                    <h3 class="text-xl font-bold text-gray-800 mb-4">Status Bayaran (${namaBulanIni})</h3>
-                                    <div class="space-y-2 text-sm">
-                                        <div class="flex justify-between items-center">
-                                            <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-green-500 mr-2"></div>Lunas</div>
-                                            <span class="font-bold">${pelangganSudahBayar}</span>
-                                        </div>
-                                        <div class="flex justify-between items-center">
-                                             <div class="flex items-center"><div class="w-3 h-3 rounded-full bg-red-500 mr-2"></div>Nunggak</div>
-                                            <span class="font-bold">${pelangganBelumBayar}</span>
-                                        </div>
-                                    </div>
-                                    <div class="w-full bg-red-200 rounded-full h-2.5 mt-3">
-                                        <div class="bg-green-500 h-2.5 rounded-full" style="width: ${persentaseBayar}%"></div>
-                                    </div>
+
+                            <!-- Right Column: AP List -->
+                             <div class="bg-white p-6 rounded-2xl shadow-md">
+                                <h3 class="text-xl font-bold text-gray-800 mb-4">Utilisasi Access Point</h3>
+                                <div class="space-y-4 max-h-[500px] overflow-y-auto">
+                                    ${state.accessPoints.length > 0 ? [...state.accessPoints].sort((a,b) => a.namaLokasi.localeCompare(b.namaLokasi)).map(ap => {
+                                        const userCount = state.pelanggan.filter(p => p.selectedApId === ap.id).length;
+                                        return `
+                                        <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                            <div class="bg-blue-100 text-blue-600 p-3 rounded-lg">${icons.wifi}</div>
+                                            <div class="flex-grow">
+                                                <p class="font-bold text-gray-800">${ap.namaLokasi}</p>
+                                                <p class="text-xs text-gray-500 font-mono">${ap.alamatGateway}</p>
+                                            </div>
+                                            <div class="text-center">
+                                                <p class="text-2xl font-bold text-blue-600">${userCount}</p>
+                                                <p class="text-xs font-medium text-gray-500">Pengguna</p>
+                                            </div>
+                                        </div>`;
+                                    }).join('') : '<p class="text-center text-gray-500 py-8">Belum ada Access Point.</p>'}
                                 </div>
-                                <div class="bg-white p-6 rounded-2xl shadow-md">
-                                    <h3 class="text-xl font-bold text-gray-800 mb-4">Info Singkat</h3>
-                                    <div class="space-y-3">
-                                        <div class="flex items-center justify-between"><span class="text-gray-600">Total Anak Kos</span><span class="font-bold text-lg">${totalPelanggan}</span></div>
-                                        <div class="flex items-center justify-between"><span class="text-gray-600">Total Access Point</span><span class="font-bold text-lg">${state.accessPoints.length}</span></div>
-                                    </div>
+                                <div class="border-t pt-4 mt-4 text-sm space-y-2">
+                                    <div class="flex justify-between items-center"><span class="text-gray-600">Total AP</span><span class="font-bold bg-gray-100 px-2 py-1 rounded">${state.accessPoints.length}</span></div>
+                                    <div class="flex justify-between items-center"><span class="text-gray-600">Password Diganti</span><span class="font-bold text-right">${lastPasswordUpdate ? formatTimestamp(lastPasswordUpdate, 'relative') : 'Belum Pernah'}</span></div>
                                 </div>
                             </div>
                         </div>
-
                     </div>
                 `;
             }
 
             function renderPelanggan() {
-                const filteredPelanggan = state.pelanggan.filter(p => 
-                    p.nama.toLowerCase().includes(state.searchTerm.toLowerCase()) ||
-                    (p.kamar && p.kamar.toLowerCase().includes(state.searchTerm.toLowerCase()))
-                ).sort((a,b) => a.nama.localeCompare(b.nama));
-                const kunciBulanIni = getBulanTahunKunci(new Date());
+                const apOptions = state.accessPoints.map(ap => `<option value="${ap.id}">${ap.namaLokasi}</option>`).join('');
 
                 return `
                     <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
@@ -492,64 +548,137 @@
                         </button>
                     </div>
                     
-                    <div class="mb-6">
-                        <input type="text" placeholder="Cari nama atau no. kamar..." class="w-full p-3 border rounded-lg bg-white shadow-sm" value="${state.searchTerm}" oninput="window.handleSearch(this.value)">
+                    <div class="bg-white p-4 rounded-xl shadow-md mb-6 space-y-4 md:space-y-0 md:flex md:items-center md:gap-4">
+                        <div class="flex-grow">
+                            <label for="search-input" class="text-sm font-medium text-gray-700 sr-only">Cari</label>
+                            <input id="search-input" type="text" placeholder="Cari nama atau no. kamar..." class="input-style !mt-0 w-full" value="${state.searchTerm}" oninput="window.handleSearch(this.value)">
+                        </div>
+                        <div class="grid grid-cols-2 md:flex gap-4">
+                            <select class="input-style !mt-0" onchange="window.handleFilterChange('status', this.value)">
+                                <option value="all" ${state.pelangganFilter.status === 'all' ? 'selected' : ''}>Semua Status</option>
+                                <option value="lunas" ${state.pelangganFilter.status === 'lunas' ? 'selected' : ''}>Lunas</option>
+                                <option value="nunggak" ${state.pelangganFilter.status === 'nunggak' ? 'selected' : ''}>Nunggak</option>
+                            </select>
+                            <select class="input-style !mt-0" onchange="window.handleFilterChange('apId', this.value)">
+                                <option value="all" ${state.pelangganFilter.apId === 'all' ? 'selected' : ''}>Semua AP</option>
+                                ${apOptions}
+                            </select>
+                            <select class="input-style !mt-0" onchange="window.handleSortChange(this.value)">
+                                <option value="nama-asc" ${state.pelangganSort.key === 'nama' && state.pelangganSort.direction === 'asc' ? 'selected' : ''}>Nama (A-Z)</option>
+                                <option value="nama-desc" ${state.pelangganSort.key === 'nama' && state.pelangganSort.direction === 'desc' ? 'selected' : ''}>Nama (Z-A)</option>
+                                <option value="kamar-asc" ${state.pelangganSort.key === 'kamar' && state.pelangganSort.direction === 'asc' ? 'selected' : ''}>Kamar (Asc)</option>
+                                <option value="kamar-desc" ${state.pelangganSort.key === 'kamar' && state.pelangganSort.direction === 'desc' ? 'selected' : ''}>Kamar (Desc)</option>
+                                <option value="status-asc" ${state.pelangganSort.key === 'status' && state.pelangganSort.direction === 'asc' ? 'selected' : ''}>Status (Lunas dulu)</option>
+                                <option value="status-desc" ${state.pelangganSort.key === 'status' && state.pelangganSort.direction === 'desc' ? 'selected' : ''}>Status (Nunggak dulu)</option>
+                            </select>
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                        ${filteredPelanggan.length > 0 ? filteredPelanggan.map(p => {
-                             const pembayaranBulanIni = p.statusPembayaran?.[kunciBulanIni];
-                             const lunas = pembayaranBulanIni?.status === 'lunas';
-                             const assignedAp = state.accessPoints.find(ap => ap.id === p.selectedApId);
-                             const showDropdown = state.activeDropdown === p.id;
-                             
-                             return `
-                                <div class="bg-white rounded-xl shadow-md flex flex-col justify-between p-4">
-                                    <div>
-                                        <div class="flex justify-between items-start">
-                                            <div>
-                                                <p class="text-base font-bold text-gray-800 leading-tight">${p.nama}</p>
-                                                <p class="text-xs text-gray-500">Kamar ${p.kamar}</p>
-                                            </div>
-                                            <div class="relative dropdown-container">
-                                                <button onclick="window.toggleDropdown('${p.id}')" class="text-gray-400 hover:bg-gray-200 rounded-full p-1.5">${icons.moreVertical}</button>
-                                                <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 ${showDropdown ? 'block' : 'hidden'}">
-                                                    <a href="#" onclick="window.openPelangganModal('${p.id}'); event.preventDefault();" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Edit Info</a>
-                                                    <a href="#" onclick="window.openPaymentHistoryModal('${p.id}'); event.preventDefault();" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">History Bayaran</a>
-                                                    <a href="#" onclick="window.deletePelanggan('${p.id}'); event.preventDefault();" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50">Hapus Anak Kos</a>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <p class="text-xs text-gray-500 mt-2">AP: ${assignedAp ? assignedAp.namaLokasi : '<span class="text-red-500">Belum diset</span>'}</p>
-                                    </div>
-                                    <div class="mt-3">
-                                        ${lunas ? `
-                                            <div class="text-center bg-green-100 text-green-800 p-2 rounded-lg">
-                                                <p class="font-bold text-sm">Lunas</p>
-                                                <p class="text-xs">Sama: ${pembayaranBulanIni.dicatatOleh?.nama.split(' ')[0] || 'Sistem'} | <button onclick="window.toggleStatusPembayaran('${p.id}')" class="font-semibold underline hover:text-green-900">Batalin</button></p>
-                                            </div>
-                                            <button onclick="window.handleWaButton('${p.id}')" class="mt-2 w-full btn btn-secondary btn-sm py-1.5 text-xs flex items-center justify-center gap-1">
-                                                ${icons.key.replace('width="24" height="24"', 'width="14" height="14"')} Kirim Password
-                                            </button>
-                                        ` : `
-                                            <div class="text-center bg-red-100 text-red-800 p-2 rounded-lg font-bold text-sm">Nunggak</div>
-                                            <div class="mt-2 flex gap-2">
-                                                <button onclick="window.toggleStatusPembayaran('${p.id}')" class="w-full btn btn-primary btn-sm py-1.5 text-xs flex items-center justify-center gap-1">
-                                                     ${icons.checkCircle.replace('width="24" height="24"', 'width="14" height="14"')}
-                                                     <span>Lunas</span>
-                                                </button>
-                                                <button onclick="window.handleWaButton('${p.id}', true)" class="w-full btn btn-secondary btn-sm py-1.5 text-xs flex items-center justify-center gap-1">
-                                                    ${icons.whatsapp.replace('width="20" height="20"', 'width="14" height="14"')}
-                                                    <span>Tagih</span>
-                                                </button>
-                                            </div>
-                                        `}
-                                    </div>
-                                </div>
-                            `}).join('') : `<div class="col-span-full text-center p-10 text-gray-500 bg-white rounded-lg shadow-md">Gak nemu anak kos yang lu cari.</div>`
-                        }
+                    <div id="pelanggan-list-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                        <div class="col-span-full text-center p-10 text-gray-500">Memuat data...</div>
                     </div>
                 `;
+            }
+
+            function renderPelangganList() {
+                const container = document.getElementById('pelanggan-list-container');
+                if (!container) return;
+
+                const kunciBulanIni = getBulanTahunKunci(new Date());
+
+                const filteredPelanggan = state.pelanggan.filter(p => {
+                    const searchTerm = state.searchTerm.toLowerCase();
+                    const filterStatus = state.pelangganFilter.status;
+                    const filterApId = state.pelangganFilter.apId;
+                    const searchMatch = searchTerm === '' ||
+                        p.nama.toLowerCase().includes(searchTerm) ||
+                        (p.kamar && p.kamar.toLowerCase().includes(searchTerm));
+                    const pembayaranBulanIni = p.statusPembayaran?.[kunciBulanIni]?.status === 'lunas';
+                    const statusMatch = filterStatus === 'all' ||
+                        (filterStatus === 'lunas' && pembayaranBulanIni) ||
+                        (filterStatus === 'nunggak' && !pembayaranBulanIni);
+                    const apMatch = filterApId === 'all' || p.selectedApId === filterApId;
+                    return searchMatch && statusMatch && apMatch;
+                });
+
+                filteredPelanggan.sort((a, b) => {
+                    const { key, direction } = state.pelangganSort;
+                    const dir = direction === 'asc' ? 1 : -1;
+                    if (key === 'nama') return a.nama.localeCompare(b.nama) * dir;
+                    if (key === 'kamar') {
+                        const kamarA = parseInt(a.kamar, 10) || a.kamar;
+                        const kamarB = parseInt(b.kamar, 10) || b.kamar;
+                        if (kamarA < kamarB) return -1 * dir;
+                        if (kamarA > kamarB) return 1 * dir;
+                        return 0;
+                    }
+                    if (key === 'status') {
+                        const statusA = a.statusPembayaran?.[kunciBulanIni]?.status === 'lunas' ? 1 : 0;
+                        const statusB = b.statusPembayaran?.[kunciBulanIni]?.status === 'lunas' ? 1 : 0;
+                        return (statusB - statusA) * dir;
+                    }
+                    return 0;
+                });
+
+                if (filteredPelanggan.length === 0) {
+                     container.innerHTML = `<div class="col-span-full text-center p-10 text-gray-500 bg-white rounded-lg shadow-md">Gak nemu anak kos yang cocok sama filter lu.</div>`;
+                     return;
+                }
+                
+                container.innerHTML = filteredPelanggan.map(p => {
+                    const pembayaranBulanIni = p.statusPembayaran?.[kunciBulanIni];
+                    const lunas = pembayaranBulanIni?.status === 'lunas';
+                    const assignedAp = state.accessPoints.find(ap => ap.id === p.selectedApId);
+                    const showDropdown = state.activeDropdown === p.id;
+                    
+                    return `
+                        <div class="bg-white rounded-xl shadow-md flex flex-col justify-between p-4">
+                            <div>
+                                <div class="flex justify-between items-start">
+                                    <div>
+                                        <p class="text-base font-bold text-gray-800 leading-tight flex items-center gap-2">
+                                            ${p.nama}
+                                            ${p.isNewSubscriber ? '<span class="text-xs bg-blue-100 text-blue-800 font-medium px-2 py-0.5 rounded-full">Baru</span>' : ''}
+                                        </p>
+                                        <p class="text-xs text-gray-500">Kamar ${p.kamar}</p>
+                                    </div>
+                                    <div class="relative dropdown-container">
+                                        <button onclick="window.toggleDropdown('${p.id}')" class="text-gray-400 hover:bg-gray-200 rounded-full p-1.5">${icons.moreVertical}</button>
+                                        <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg z-10 ${showDropdown ? 'block' : 'hidden'}">
+                                            <a href="#" onclick="window.openPelangganModal('${p.id}'); event.preventDefault();" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Edit Info</a>
+                                            <a href="#" onclick="window.openPaymentHistoryModal('${p.id}'); event.preventDefault();" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">History Bayaran</a>
+                                            <a href="#" onclick="window.deletePelanggan('${p.id}'); event.preventDefault();" class="block px-4 py-2 text-sm text-red-600 hover:bg-red-50">Hapus Anak Kos</a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">AP: ${assignedAp ? assignedAp.namaLokasi : '<span class="text-red-500">Belum diset</span>'}</p>
+                            </div>
+                            <div class="mt-3">
+                                ${lunas ? `
+                                    <div class="text-center bg-green-100 text-green-800 p-2 rounded-lg">
+                                        <p class="font-bold text-sm">Lunas</p>
+                                        <p class="text-xs">Sama: ${pembayaranBulanIni.dicatatOleh?.nama.split(' ')[0] || 'Sistem'} | <button onclick="window.toggleStatusPembayaran('${p.id}')" class="font-semibold underline hover:text-green-900">Batalin</button></p>
+                                    </div>
+                                    <button onclick="window.handleWaButton('${p.id}')" class="mt-2 w-full btn btn-secondary btn-sm py-1.5 text-xs flex items-center justify-center gap-1">
+                                        ${icons.key.replace('width="24" height="24"', 'width="14" height="14"')} Kirim Password
+                                    </button>
+                                ` : `
+                                    <div class="text-center bg-red-100 text-red-800 p-2 rounded-lg font-bold text-sm">Nunggak</div>
+                                    <div class="mt-2 flex gap-2">
+                                        <button onclick="window.toggleStatusPembayaran('${p.id}')" class="w-full btn btn-primary btn-sm py-1.5 text-xs flex items-center justify-center gap-1">
+                                             ${icons.checkCircle.replace('width="24" height="24"', 'width="14" height="14"')}
+                                             <span>Lunas</span>
+                                        </button>
+                                        <button onclick="window.handleWaButton('${p.id}', true)" class="w-full btn btn-secondary btn-sm py-1.5 text-xs flex items-center justify-center gap-1">
+                                            ${icons.whatsapp.replace('width="20" height="20"', 'width="14" height="14"')}
+                                            <span>Tagih</span>
+                                        </button>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
             }
             
             function renderJaringan() {
@@ -608,7 +737,7 @@
                                         <p class="text-xs text-gray-500 mb-1">Password Bulan Ini (${namaBulanIni})</p>
                                         <div class="flex items-center justify-between">
                                             <span class="text-2xl font-bold font-mono ${password ? 'text-blue-600' : 'text-red-500'}">${password || 'Belum dibikin'}</span>
-                                            ${password ? `<button onclick="window.handleCopyPassword(this, '${password}')" class="text-gray-600 hover:text-blue-700 p-1" title="Copy Password">${icons.copy}</button>`:''}
+                                            ${password ? `<button onclick="handleCopyText('${password}', this)" class="text-gray-600 hover:text-blue-700 p-1" title="Copy Password">${icons.copy}</button>`:''}
                                         </div>
                                     </div>
                                      <details class="text-xs mt-2 text-gray-500">
@@ -661,7 +790,6 @@
 
             function renderKeuangan() {
                 const availableMonths = getAvailableMonths();
-                const { biayaLanggananDefault } = state.pengaturan;
                 const isAllTime = state.selectedMonth === 'all';
 
                 let pemasukanDariPelanggan, pemasukanLainPeriode, pengeluaranPeriode;
@@ -707,7 +835,6 @@
                         <h2 class="text-2xl font-bold text-gray-800 self-start">Ringkasan Duit</h2>
                         <select id="month-selector" class="input-style !mt-0 w-full md:w-auto" onchange="window.handleMonthChange(this.value)">
                             <option value="all" ${isAllTime ? 'selected' : ''}>Selamanya</option>
-                            <option value="${getBulanTahunKunci(new Date())}" ${state.selectedMonth === getBulanTahunKunci(new Date()) && !isAllTime ? 'selected' : ''}>Bulan Ini</option>
                             ${availableMonths.map(month => `<option value="${month}" ${state.selectedMonth === month ? 'selected' : ''}>${getNamaBulanTahun(month)}</option>`).join('')}
                         </select>
                     </div>
@@ -731,14 +858,17 @@
                         </div>
                         <div class="lg:col-span-1">
                              <div class="bg-white p-6 rounded-xl shadow-md">
-                                <div class="flex items-center gap-3 mb-4 border-b pb-4"><div class="bg-gray-100 p-2 rounded-full">${icons.settings}</div><h3 class="text-xl font-semibold text-gray-800">Setting</h3></div>
-                                <div>
-                                     <label for="biaya-langganan" class="block text-sm font-medium text-gray-700 mb-1">Tarif Patungan</label>
-                                     <div class="flex items-center gap-2">
-                                         <input type="number" id="biaya-langganan" class="input-style !mt-0 w-full" value="${biayaLanggananDefault}">
-                                         <button onclick="window.handleUpdateBiayaLangganan()" class="btn btn-secondary px-3 py-2 text-sm flex-shrink-0">Simpen</button>
-                                     </div>
-                                     <p class="text-xs text-gray-500 mt-2">Tarif ini otomatis kepake pas nandain anak kos 'Lunas'.</p>
+                                <div class="flex items-center gap-3 mb-4 border-b pb-4"><div class="bg-gray-100 p-2 rounded-full">${icons.settings}</div><h3 class="text-xl font-semibold text-gray-800">Setting Tarif</h3></div>
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="biaya-baru" class="block text-sm font-medium text-gray-700 mb-1">Tarif Pelanggan Baru (2 Bulan)</label>
+                                        <input type="number" id="biaya-baru" class="input-style !mt-0 w-full" value="${state.pengaturan.biayaLanggananBaru}">
+                                    </div>
+                                    <div>
+                                        <label for="biaya-regular" class="block text-sm font-medium text-gray-700 mb-1">Tarif Bulanan Regular</label>
+                                        <input type="number" id="biaya-regular" class="input-style !mt-0 w-full" value="${state.pengaturan.biayaLanggananRegular}">
+                                    </div>
+                                    <button onclick="window.handleUpdateBiayaLangganan()" class="btn btn-secondary w-full">Simpen Tarif</button>
                                 </div>
                              </div>
                         </div>
@@ -761,9 +891,9 @@
             }
 
             // --- LOGIKA PELANGGAN ---
-            window.toggleDropdown = (pelangganId) => {
-                state.activeDropdown = state.activeDropdown === pelangganId ? null : pelangganId;
-                renderApp();
+            window.toggleDropdown = (id) => {
+                state.activeDropdown = state.activeDropdown === id ? null : id;
+                renderPelangganList();
             };
 
             window.openPelangganModal = function(id = null) {
@@ -777,7 +907,7 @@
                     <form onsubmit="event.preventDefault(); window.handlePelangganSubmit();" autocomplete="off">
                         <div class="space-y-4">
                             <div><label class="block text-sm font-medium text-gray-700">Nama Lengkap</label><input type="text" id="nama" class="input-style" value="${pelanggan?.nama || ''}" required /></div>
-                            <div><label class="block text-sm font-medium text-gray-700">No. WhatsApp (e.g., 62812...)</label><input type="tel" id="nomorWhatsapp" class="input-style" value="${pelanggan?.nomorWhatsapp || ''}" required /></div>
+                            <div><label class="block text-sm font-medium text-gray-700">No. WhatsApp (e.g., 0812...)</label><input type="tel" id="nomorWhatsapp" class="input-style" value="${pelanggan?.nomorWhatsapp || ''}" required /></div>
                             <div><label class="block text-sm font-medium text-gray-700">Nomor Kamar</label><input type="text" id="kamar" class="input-style" value="${pelanggan?.kamar || ''}" required /></div>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Sambungin ke Access Point (AP)</label>
@@ -786,7 +916,15 @@
                                     ${apOptions}
                                 </select>
                             </div>
-                            <p class="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">Tarif bulanan diset buat semua, yaitu <strong class="font-semibold">${formatRupiah(state.pengaturan.biayaLanggananDefault)}</strong>. Ganti aja di halaman Duit.</p>
+                             <div class="flex items-center pt-2">
+                                <input type="checkbox" id="isNewSubscriber" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" ${!pelanggan || pelanggan.isNewSubscriber === true ? 'checked' : ''}>
+                                <label for="isNewSubscriber" class="ml-2 block text-sm text-gray-900">Ini pelanggan baru (bayar 2 bulan di muka).</label>
+                            </div>
+                            <p class="text-sm text-gray-600 bg-blue-50 p-3 rounded-md">
+                                Tarif bulanan diset di halaman Duit.<br>
+                                <strong>Pelanggan Baru:</strong> ${formatRupiah(state.pengaturan.biayaLanggananBaru)} (2 bulan)<br>
+                                <strong>Regular:</strong> ${formatRupiah(state.pengaturan.biayaLanggananRegular)} / bulan
+                            </p>
                         </div>
                         <div class="mt-6 flex justify-end gap-3"><button type="button" onclick="window.closeModal()" class="btn btn-secondary">Batal</button><button type="submit" class="btn btn-primary">Simpen</button></div>
                     </form>
@@ -795,15 +933,22 @@
             };
             
             window.handlePelangganSubmit = async function() {
+                const rawWhatsapp = document.getElementById('nomorWhatsapp').value;
+                const cleanedWhatsapp = formatWhatsappNumber(rawWhatsapp);
+
                 const data = {
                     nama: document.getElementById('nama').value,
-                    nomorWhatsapp: document.getElementById('nomorWhatsapp').value,
+                    nomorWhatsapp: cleanedWhatsapp,
                     kamar: document.getElementById('kamar').value,
                     selectedApId: document.getElementById('selectedApId').value,
+                    isNewSubscriber: document.getElementById('isNewSubscriber').checked,
                     updatedAt: serverTimestamp(),
                 };
-                if (state.editId) await updateDoc(doc(db, `artifacts/${appId}/public/data/pelanggan/${state.editId}`), data);
-                else await addDoc(collection(db, `artifacts/${appId}/public/data/pelanggan`), { ...data, statusPembayaran: {}, createdAt: serverTimestamp() });
+                if (state.editId) {
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/pelanggan/${state.editId}`), data);
+                } else {
+                    await addDoc(collection(db, `artifacts/${appId}/public/data/pelanggan`), { ...data, statusPembayaran: {}, createdAt: serverTimestamp() });
+                }
                 closeModal();
             };
 
@@ -817,27 +962,41 @@
                 const pelanggan = state.pelanggan.find(p => p.id === id);
                 if (!pelanggan) return;
                 const user = auth.currentUser;
-                if (!user) {
-                    alert("Sesi abis. Login lagi ya.");
-                    return;
-                }
+                if (!user) { alert("Sesi abis. Login lagi ya."); return; }
 
                 const kunciBulanIni = getBulanTahunKunci(new Date());
                 const pembayaranSaatIni = pelanggan.statusPembayaran?.[kunciBulanIni];
-                
-                const dicatatOleh = {
-                    uid: user.uid,
-                    nama: user.displayName,
-                    email: user.email,
-                };
+                const dicatatOleh = { uid: user.uid, nama: user.displayName, email: user.email };
 
-                const pembayaranBaru = pembayaranSaatIni?.status === 'lunas' 
-                    ? { status: 'belum_bayar', jumlah: null, tanggalBayar: null, dicatatOleh: null }
-                    : { status: 'lunas', jumlah: state.pengaturan.biayaLanggananDefault || 0, tanggalBayar: serverTimestamp(), dicatatOleh };
+                if (pembayaranSaatIni?.status === 'lunas') {
+                    const updates = {
+                        [`statusPembayaran.${kunciBulanIni}`]: { status: 'belum_bayar', jumlah: null, tanggalBayar: null, dicatatOleh: null },
+                        updatedAt: serverTimestamp()
+                    };
+                    if (pembayaranSaatIni.isNewSubscriberPayment) {
+                        const tglBerikutnya = new Date();
+                        tglBerikutnya.setMonth(tglBerikutnya.getMonth() + 1);
+                        const kunciBulanBerikutnya = getBulanTahunKunci(tglBerikutnya);
+                        updates[`statusPembayaran.${kunciBulanBerikutnya}`] = { status: 'belum_bayar', jumlah: null, tanggalBayar: null, dicatatOleh: null };
+                        updates.isNewSubscriber = true;
+                    }
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/pelanggan/${id}`), updates);
+                } 
+                else {
+                    const updates = { updatedAt: serverTimestamp() };
+                    if (pelanggan.isNewSubscriber) {
+                        const tglBerikutnya = new Date();
+                        tglBerikutnya.setMonth(tglBerikutnya.getMonth() + 1);
+                        const kunciBulanBerikutnya = getBulanTahunKunci(tglBerikutnya);
 
-                await updateDoc(doc(db, `artifacts/${appId}/public/data/pelanggan/${id}`), {
-                    [`statusPembayaran.${kunciBulanIni}`]: pembayaranBaru, updatedAt: serverTimestamp()
-                });
+                        updates[`statusPembayaran.${kunciBulanIni}`] = { status: 'lunas', jumlah: state.pengaturan.biayaLanggananBaru, tanggalBayar: serverTimestamp(), dicatatOleh, isNewSubscriberPayment: true };
+                        updates[`statusPembayaran.${kunciBulanBerikutnya}`] = { status: 'lunas', jumlah: 0, tanggalBayar: serverTimestamp(), dicatatOleh };
+                        updates.isNewSubscriber = false; 
+                    } else {
+                        updates[`statusPembayaran.${kunciBulanIni}`] = { status: 'lunas', jumlah: state.pengaturan.biayaLanggananRegular, tanggalBayar: serverTimestamp(), dicatatOleh };
+                    }
+                    await updateDoc(doc(db, `artifacts/${appId}/public/data/pelanggan/${id}`), updates);
+                }
             };
             
             window.handleWaButton = function(id, forceTagih = false) {
@@ -849,23 +1008,21 @@
                 let pesan;
                 
                 if (pembayaranBulanIni?.status === 'lunas' && !forceTagih) {
-                    if (!p.selectedApId) {
-                        alert("Anak kos ini belum nyambung ke Access Point (AP). Edit dulu infonya, pilih AP-nya.");
-                        return;
-                    }
+                    if (!p.selectedApId) { alert("Anak kos ini belum nyambung ke Access Point (AP). Edit dulu infonya, pilih AP-nya."); return; }
                     const assignedAp = state.accessPoints.find(ap => ap.id === p.selectedApId);
                     const historyBulanIni = state.pengaturan.passwordHistory.find(h => h.month === kunciBulanIni);
                     const kataSandiSpesifik = historyBulanIni?.passwords?.[p.selectedApId];
 
-                    if (!assignedAp || !kataSandiSpesifik) {
-                        alert("Password buat AP anak kos ini belum dibikin buat bulan ini. Bikin dulu di halaman Jaringan.");
-                        return;
-                    }
+                    if (!assignedAp || !kataSandiSpesifik) { alert("Password buat AP anak kos ini belum dibikin buat bulan ini. Bikin dulu di halaman Jaringan."); return; }
                     pesan = `Halo ${p.nama}, makasih ya buat bayaran internet bulan ${namaBulan}.\n\nIni detail aksesnya:\nJaringan/Lokasi: *${assignedAp.namaLokasi}*\nPassword: *${kataSandiSpesifik}*\n\nPassword-nya rahasia ya. Selamat internetan!`;
                 } else {
-                    pesan = `Halo ${p.nama} (kamar ${p.kamar}), mau ngingetin bayaran internet bulan ${namaBulan} sebesar ${formatRupiah(state.pengaturan.biayaLanggananDefault)}. Jangan lupa dibayar ya. Makasih.`;
+                    const biaya = p.isNewSubscriber ? state.pengaturan.biayaLanggananBaru : state.pengaturan.biayaLanggananRegular;
+                    const keteranganBiaya = p.isNewSubscriber ? " (untuk 2 bulan pertama)" : "";
+                    pesan = `Halo ${p.nama} (kamar ${p.kamar}), mau ngingetin bayaran internet bulan ${namaBulan} sebesar ${formatRupiah(biaya)}${keteranganBiaya}. Jangan lupa dibayar ya. Makasih.`;
                 }
-                window.open(`https://api.whatsapp.com/send?phone=${p.nomorWhatsapp}&text=${encodeURIComponent(pesan)}`, '_blank');
+
+                const cleanedWhatsapp = formatWhatsappNumber(p.nomorWhatsapp);
+                window.open(`https://api.whatsapp.com/send?phone=${cleanedWhatsapp}&text=${encodeURIComponent(pesan)}`, '_blank');
             }
 
             window.openPaymentHistoryModal = (pelangganId) => {
@@ -905,31 +1062,20 @@
 
             // --- LOGIKA JARINGAN & KATA SANDI ---
             window.generateAllNewPasswords = async function() {
-                if (state.accessPoints.length === 0) {
-                    alert("Belum ada Access Point (AP) yang kedaftar. Tambahin dulu gih.");
-                    return;
-                }
+                if (state.accessPoints.length === 0) { alert("Belum ada Access Point (AP) yang kedaftar. Tambahin dulu gih."); return; }
                 if (!confirm(`Yakin mau nge-generate password baru buat SEMUA ${state.accessPoints.length} Access Point?`)) return;
 
                 const kunciBulanIni = getBulanTahunKunci(new Date());
                 const currentHistory = state.pengaturan.passwordHistory.find(h => h.month === kunciBulanIni) || { passwords: {} };
                 
-                state.accessPoints.forEach(ap => {
-                    currentHistory.passwords[ap.id] = generateRobustPassword();
-                });
+                state.accessPoints.forEach(ap => { currentHistory.passwords[ap.id] = generateRobustPassword(); });
 
-                const newHistoryEntry = {
-                    timestamp: Timestamp.now(),
-                    month: kunciBulanIni,
-                    passwords: currentHistory.passwords,
-                };
-                
+                const newHistoryEntry = { timestamp: Timestamp.now(), month: kunciBulanIni, passwords: currentHistory.passwords };
                 const updatedHistory = state.pengaturan.passwordHistory.filter(h => h.month !== kunciBulanIni);
                 updatedHistory.push(newHistoryEntry);
 
                 const docRef = doc(db, `artifacts/${appId}/public/data/pengaturan/utama`);
                 await updateDoc(docRef, { passwordHistory: updatedHistory });
-                
                 alert("Sip! Password baru buat semua AP udah jadi.");
             };
             
@@ -940,7 +1086,6 @@
 
                 const kunciBulanIni = getBulanTahunKunci(new Date());
                 const newPassword = generateRobustPassword();
-
                 const currentHistoryForMonth = state.pengaturan.passwordHistory.find(h => h.month === kunciBulanIni) || { month: kunciBulanIni, passwords: {} };
                 currentHistoryForMonth.passwords[apId] = newPassword;
                 currentHistoryForMonth.timestamp = Timestamp.now();
@@ -950,31 +1095,9 @@
                 
                 const docRef = doc(db, `artifacts/${appId}/public/data/pengaturan/utama`);
                 await updateDoc(docRef, { passwordHistory: updatedHistory });
-                
                 alert(`Password baru buat ${ap.namaLokasi} udah jadi!`);
             };
 
-
-            window.handleCopyPassword = function(button, password) {
-                if (password) {
-                    // Fallback for non-secure contexts
-                    const textArea = document.createElement("textarea");
-                    textArea.value = password;
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    try {
-                        document.execCommand('copy');
-                        const originalText = button.innerHTML;
-                        button.innerHTML = 'Dicopy!';
-                        setTimeout(() => { button.innerHTML = originalText; }, 2000);
-                    } catch (err) {
-                        console.error('Fallback: Oops, unable to copy', err);
-                    }
-                    document.body.removeChild(textArea);
-                }
-            };
-            
             window.openApModal = function(id = null) {
                 state.editId = id;
                 const ap = id ? state.accessPoints.find(p => p.id === id) : null;
@@ -987,9 +1110,7 @@
                             <div><label class="block text-sm font-medium text-gray-700">Password Admin AP</label>
                                 <div class="relative">
                                     <input type="password" id="kataSandiAdmin" class="input-style pr-10" value="${ap?.kataSandiAdmin || ''}" required />
-                                    <button type="button" onclick="window.togglePasswordVisibility(this, 'kataSandiAdmin')" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500">
-                                        ${icons.eye}
-                                    </button>
+                                    <button type="button" onclick="window.togglePasswordVisibility(this, 'kataSandiAdmin')" class="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500">${icons.eye}</button>
                                 </div>
                             </div>
                         </div>
@@ -1025,16 +1146,32 @@
 
             window.deleteAp = async (id) => { if (confirm("Yakin mau hapus data AP ini?")) await deleteDoc(doc(db, `artifacts/${appId}/public/data/accessPoints/${id}`)); };
 
-            // --- LOGIKA KEUANGAN ---
+            // --- LOGIKA KEUANGAN & CLIPBOARD ---
             window.handleUpdateBiayaLangganan = async () => {
-                const newFee = Number(document.getElementById('biaya-langganan').value);
-                if (isNaN(newFee) || newFee < 0) {
+                const newFeeBaru = Number(document.getElementById('biaya-baru').value);
+                const newFeeRegular = Number(document.getElementById('biaya-regular').value);
+                if (isNaN(newFeeBaru) || newFeeBaru < 0 || isNaN(newFeeRegular) || newFeeRegular < 0) {
                     alert("Masukin angka yang bener buat tarifnya.");
                     return;
                 }
                 const docRef = doc(db, `artifacts/${appId}/public/data/pengaturan/utama`);
-                await updateDoc(docRef, { biayaLanggananDefault: newFee });
-                alert("Tarif patungan berhasil di-update!");
+                await updateDoc(docRef, { 
+                    biayaLanggananBaru: newFeeBaru,
+                    biayaLanggananRegular: newFeeRegular
+                });
+                alert("Tarif berhasil di-update!");
+            };
+
+             window.handleUpdateClipboard = async () => {
+                const pendaftaranText = document.getElementById('clipboard-pendaftaran').value;
+                const pembayaranText = document.getElementById('clipboard-pembayaran').value;
+
+                const docRef = doc(db, `artifacts/${appId}/public/data/pengaturan/utama`);
+                await updateDoc(docRef, {
+                    clipboardPendaftaran: pendaftaranText,
+                    clipboardPembayaran: pembayaranText
+                });
+                alert("Template clipboard berhasil disimpan!");
             };
             
             const openKeuanganModal = (type) => {
@@ -1070,8 +1207,17 @@
 
             // --- EVENT HANDLER & NAVIGASI ---
             window.setView = (newView) => { state.view = newView; renderApp(); };
-            window.handleSearch = (value) => { state.searchTerm = value; renderApp(); };
+            window.handleSearch = (value) => { state.searchTerm = value; renderPelangganList(); };
             window.handleMonthChange = (value) => { state.selectedMonth = value; renderApp(); };
+            window.handleFilterChange = (type, value) => {
+                state.pelangganFilter[type] = value;
+                renderPelangganList();
+            };
+            window.handleSortChange = (value) => {
+                const [key, direction] = value.split('-');
+                state.pelangganSort = { key, direction };
+                renderPelangganList();
+            };
             
             // --- LOGIKA AUTENTIKASI ---
             window.handleGoogleLogin = async () => { try { await signInWithPopup(auth, provider); } catch (error) { console.error("Login Gagal:", error); } };
@@ -1085,39 +1231,45 @@
                     if (state.isAuthorized) {
                         const collectionsToWatch = { pelanggan: 'pelanggan', accessPoints: 'accessPoints', pengeluaran: 'pengeluaran', pemasukanLain: 'pemasukanLain' };
                         
-                        // Set up listeners that call renderApp on every update
-                        for (const key in collectionsToWatch) {
-                            const path = `artifacts/${appId}/public/data/${collectionsToWatch[key]}`;
-                            onSnapshot(collection(db, path), (snapshot) => {
-                                state[key] = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
-                                renderApp();
-                            });
-                        }
+                        Object.keys(collectionsToWatch).forEach(key => {
+                             const path = `artifacts/${appId}/public/data/${collectionsToWatch[key]}`;
+                             onSnapshot(collection(db, path), (snapshot) => {
+                                 state[key] = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id }));
+                                 if (state.view === 'pelanggan' && key === 'pelanggan') {
+                                     renderPelangganList();
+                                 } else {
+                                     renderApp();
+                                 }
+                             });
+                        });
+
                         const pengaturanRef = doc(db, `artifacts/${appId}/public/data/pengaturan/utama`);
                         onSnapshot(pengaturanRef, (docSnap) => {
                              const data = docSnap.exists() ? docSnap.data() : {};
                              state.pengaturan = {
-                                biayaLanggananDefault: data.biayaLanggananDefault || 50000,
-                                passwordHistory: data.passwordHistory || [],
+                                ...state.pengaturan, // Keep defaults
+                                ...data // Overwrite with data from firestore
                              };
                             renderApp();
                         });
                     } else { renderApp(); }
                 } else {
                     state = {
+                        ...state, // keep defaults
                         view: 'dashboard', user: null, isAuthorized: false, pelanggan: [], accessPoints: [],
-                        pengaturan: { },
                         pengeluaran: [], pemasukanLain: [], searchTerm: '', editId: null,
-                        selectedMonth: 'all', activeDropdown: null,
+                        selectedMonth: getBulanTahunKunci(new Date()), activeDropdown: null,
+                        pelangganSort: { key: 'nama', direction: 'asc' },
+                        pelangganFilter: { status: 'all', apId: 'all' },
                     };
                     renderApp();
                 }
             });
+
+            // Make helper function globally accessible within the module script
+            window.handleCopyText = handleCopyText;
         }
     </script>
 </body>
 </html>
-
-
-
 
