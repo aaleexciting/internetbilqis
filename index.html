@@ -73,7 +73,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, doc, addDoc, updateDoc, deleteDoc, setDoc, serverTimestamp, Timestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- KONFIGURASI DAN INISIALISASI ---
         const firebaseConfig = {
@@ -132,7 +132,7 @@
                 editId: null,
                 selectedMonth: getBulanTahunKunci(new Date()),
                 activeDropdown: null,
-                pelangganSort: { key: 'nama', direction: 'asc' },
+                pelangganSort: { key: 'status', direction: 'desc' }, // Nunggak dulu by default
                 pelangganFilter: { status: 'all', apId: 'all' },
             };
             
@@ -150,7 +150,7 @@
                 whatsapp: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>`,
                 logout: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
                 copy: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`,
-                history: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>`,
+                history: `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>`,
                 eye: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
                 eyeOff: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>`,
                 settings: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2l.15.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>`,
@@ -169,6 +169,7 @@
                 refresh: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>`,
                 userPlus: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>`,
                 clipboard: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect></svg>`,
+                bell: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>`,
             };
             
              // --- NAVIGASI ---
@@ -231,6 +232,21 @@
                 if (cleaned.startsWith('0')) {
                     cleaned = '62' + cleaned.substring(1);
                 } 
+                return cleaned;
+            };
+
+            const normalizePhoneForSearch = (phone) => {
+                if (!phone) return '';
+                // Removes +, -, spaces, etc. and standardizes the beginning of the number.
+                let cleaned = (phone || '').replace(/\D/g, ''); 
+                if (cleaned.startsWith('62')) {
+                    // if it starts with 62, use the part after it for searching
+                    return cleaned.substring(2);
+                } else if (cleaned.startsWith('0')) {
+                    // if it starts with 0, use the part after it for searching
+                    return cleaned.substring(1);
+                }
+                // for numbers that dont start with 0 or 62
                 return cleaned;
             };
 
@@ -604,19 +620,25 @@
 
             function renderPelanggan() {
                 const apOptions = state.accessPoints.map(ap => `<option value="${ap.id}">${ap.namaLokasi}</option>`).join('');
+                const availableMonths = getAvailableMonths();
 
                 return `
-                    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
-                        <h2 class="text-2xl font-bold text-gray-800">Data Anak Kos</h2>
-                        <button onclick="window.openPelangganModal()" class="btn btn-primary flex items-center gap-2">
-                            ${icons.plus} Tambah Anak Kos
-                        </button>
+                    <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">Data Anak Kos - ${getNamaBulanTahun(state.selectedMonth)}</h2>
+                        <div class="flex items-center gap-4">
+                            <select id="pelanggan-month-selector" class="input-style !mt-0 w-auto" onchange="window.handleMonthChange(this.value)">
+                                ${availableMonths.map(month => `<option value="${month}" ${state.selectedMonth === month ? 'selected' : ''}>${getNamaBulanTahun(month)}</option>`).join('')}
+                            </select>
+                            <button onclick="window.openPelangganModal()" class="btn btn-primary flex items-center gap-2 whitespace-nowrap">
+                                ${icons.plus} Tambah Anak Kos
+                            </button>
+                        </div>
                     </div>
                     
                     <div class="bg-white p-4 rounded-xl shadow-md mb-6 space-y-4 md:space-y-0 md:flex md:items-center md:gap-4">
                         <div class="flex-grow">
                             <label for="search-input" class="text-sm font-medium text-gray-700 sr-only">Cari</label>
-                            <input id="search-input" type="text" placeholder="Cari nama atau no. kamar..." class="input-style !mt-0 w-full" value="${state.searchTerm}" oninput="window.handleSearch(this.value)">
+                            <input id="search-input" type="text" placeholder="Cari nama, no. kamar, atau no. HP..." class="input-style !mt-0 w-full" value="${state.searchTerm}" oninput="window.handleSearch(this.value)">
                         </div>
                         <div class="grid grid-cols-2 md:flex gap-4">
                             <select class="input-style !mt-0" onchange="window.handleFilterChange('status', this.value)">
@@ -629,12 +651,12 @@
                                 ${apOptions}
                             </select>
                             <select class="input-style !mt-0" onchange="window.handleSortChange(this.value)">
+                                <option value="status-desc" ${state.pelangganSort.key === 'status' && state.pelangganSort.direction === 'desc' ? 'selected' : ''}>Status (Nunggak dulu)</option>
+                                <option value="status-asc" ${state.pelangganSort.key === 'status' && state.pelangganSort.direction === 'asc' ? 'selected' : ''}>Status (Lunas dulu)</option>
                                 <option value="nama-asc" ${state.pelangganSort.key === 'nama' && state.pelangganSort.direction === 'asc' ? 'selected' : ''}>Nama (A-Z)</option>
                                 <option value="nama-desc" ${state.pelangganSort.key === 'nama' && state.pelangganSort.direction === 'desc' ? 'selected' : ''}>Nama (Z-A)</option>
                                 <option value="kamar-asc" ${state.pelangganSort.key === 'kamar' && state.pelangganSort.direction === 'asc' ? 'selected' : ''}>Kamar (Asc)</option>
                                 <option value="kamar-desc" ${state.pelangganSort.key === 'kamar' && state.pelangganSort.direction === 'desc' ? 'selected' : ''}>Kamar (Desc)</option>
-                                <option value="status-asc" ${state.pelangganSort.key === 'status' && state.pelangganSort.direction === 'asc' ? 'selected' : ''}>Status (Lunas dulu)</option>
-                                <option value="status-desc" ${state.pelangganSort.key === 'status' && state.pelangganSort.direction === 'desc' ? 'selected' : ''}>Status (Nunggak dulu)</option>
                             </select>
                         </div>
                     </div>
@@ -649,15 +671,20 @@
                 const container = document.getElementById('pelanggan-list-container');
                 if (!container) return;
 
-                const kunciBulanIni = getBulanTahunKunci(new Date());
+                const kunciBulanIni = state.selectedMonth;
 
                 const filteredPelanggan = state.pelanggan.filter(p => {
                     const searchTerm = state.searchTerm.toLowerCase();
                     const filterStatus = state.pelangganFilter.status;
                     const filterApId = state.pelangganFilter.apId;
+
+                    const normalizedSearch = normalizePhoneForSearch(state.searchTerm);
+
                     const searchMatch = searchTerm === '' ||
                         p.nama.toLowerCase().includes(searchTerm) ||
-                        (p.kamar && p.kamar.toLowerCase().includes(searchTerm));
+                        (p.kamar && p.kamar.toLowerCase().includes(searchTerm)) ||
+                        (normalizedSearch && p.nomorWhatsapp && normalizePhoneForSearch(p.nomorWhatsapp).includes(normalizedSearch));
+                        
                     const pembayaranBulanIni = p.statusPembayaran?.[kunciBulanIni]?.status === 'lunas';
                     const statusMatch = filterStatus === 'all' ||
                         (filterStatus === 'lunas' && pembayaranBulanIni) ||
@@ -680,7 +707,7 @@
                     if (key === 'status') {
                         const statusA = a.statusPembayaran?.[kunciBulanIni]?.status === 'lunas' ? 1 : 0;
                         const statusB = b.statusPembayaran?.[kunciBulanIni]?.status === 'lunas' ? 1 : 0;
-                        return (statusB - statusA) * dir;
+                        return (statusA - statusB) * dir * -1;
                     }
                     return 0;
                 });
@@ -695,6 +722,7 @@
                     const lunas = pembayaranBulanIni?.status === 'lunas';
                     const assignedAp = state.accessPoints.find(ap => ap.id === p.selectedApId);
                     const showDropdown = state.activeDropdown === p.id;
+                    const historyTagihan = pembayaranBulanIni?.historyTagihan || [];
                     
                     return `
                         <div class="bg-white rounded-xl shadow-md flex flex-col justify-between p-4">
@@ -717,6 +745,7 @@
                                     </div>
                                 </div>
                                 <p class="text-xs text-gray-500 mt-2">AP: ${assignedAp ? assignedAp.namaLokasi : '<span class="text-red-500">Belum diset</span>'}</p>
+                                ${p.catatan ? `<div class="mt-2 p-2.5 bg-yellow-50 border-l-4 border-yellow-300 rounded-r-md"><p class="text-xs text-gray-700 whitespace-pre-wrap">${p.catatan}</p></div>` : ''}
                             </div>
                             <div class="mt-3">
                                 ${lunas ? `
@@ -729,6 +758,12 @@
                                     </button>
                                 ` : `
                                     <div class="text-center bg-red-100 text-red-800 p-2 rounded-lg font-bold text-sm">Nunggak</div>
+                                    ${historyTagihan.length > 0 ? `
+                                        <button onclick="window.openTagihanHistoryModal('${p.id}')" class="w-full text-center text-xs text-gray-500 hover:underline mt-2 flex items-center justify-center gap-1">
+                                            ${icons.bell}
+                                            <span>Ditagih ${historyTagihan.length} kali</span>
+                                        </button>
+                                    ` : ''}
                                     <div class="mt-2 flex gap-2">
                                         <button onclick="window.toggleStatusPembayaran('${p.id}')" class="w-full btn btn-primary btn-sm py-1.5 text-xs flex items-center justify-center gap-1">
                                              ${icons.checkCircle.replace('width="24" height="24"', 'width="14" height="14"')}
@@ -996,6 +1031,10 @@
                                     ${apOptions}
                                 </select>
                             </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Catatan</label>
+                                <textarea id="catatan" class="input-style" rows="3" placeholder="Catatan tambahan tentang anak kos ini...">${pelanggan?.catatan || ''}</textarea>
+                            </div>
                              <div class="flex items-center pt-2">
                                 <input type="checkbox" id="isNewSubscriber" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" ${!pelanggan || pelanggan.isNewSubscriber === true ? 'checked' : ''}>
                                 <label for="isNewSubscriber" class="ml-2 block text-sm text-gray-900">Ini pelanggan baru (bayar 2 bulan di muka).</label>
@@ -1018,9 +1057,10 @@
 
                 const data = {
                     nama: document.getElementById('nama').value,
-                    nomorWhatsapp: cleanedWhatsapp,
+                    nomorWhatsapp: document.getElementById('nomorWhatsapp').value, // Store raw for editability
                     kamar: document.getElementById('kamar').value,
                     selectedApId: document.getElementById('selectedApId').value,
+                    catatan: document.getElementById('catatan').value,
                     isNewSubscriber: document.getElementById('isNewSubscriber').checked,
                     updatedAt: serverTimestamp(),
                 };
@@ -1044,7 +1084,7 @@
                 const user = auth.currentUser;
                 if (!user) { alert("Sesi abis. Login lagi ya."); return; }
 
-                const kunciBulanIni = getBulanTahunKunci(new Date());
+                const kunciBulanIni = state.selectedMonth;
                 const pembayaranSaatIni = pelanggan.statusPembayaran?.[kunciBulanIni];
                 const dicatatOleh = { uid: user.uid, nama: user.displayName, email: user.email };
 
@@ -1079,10 +1119,10 @@
                 }
             };
             
-            window.handleWaButton = function(id, forceTagih = false) {
+            window.handleWaButton = async function(id, forceTagih = false) {
                 const p = state.pelanggan.find(p => p.id === id);
                 if (!p) return;
-                const kunciBulanIni = getBulanTahunKunci(new Date());
+                const kunciBulanIni = state.selectedMonth;
                 const pembayaranBulanIni = p.statusPembayaran?.[kunciBulanIni];
                 const namaBulan = getNamaBulanTahun(kunciBulanIni);
                 let pesan;
@@ -1090,12 +1130,23 @@
                 if (pembayaranBulanIni?.status === 'lunas' && !forceTagih) {
                     if (!p.selectedApId) { alert("Anak kos ini belum nyambung ke Access Point (AP). Edit dulu infonya, pilih AP-nya."); return; }
                     const assignedAp = state.accessPoints.find(ap => ap.id === p.selectedApId);
-                    const historyBulanIni = state.pengaturan.passwordHistory.find(h => h.month === kunciBulanIni);
+                    const historyBulanIni = state.pengaturan.passwordHistory.find(h => h.month === getBulanTahunKunci(new Date()));
                     const kataSandiSpesifik = historyBulanIni?.passwords?.[p.selectedApId];
 
-                    if (!assignedAp || !kataSandiSpesifik) { alert("Password buat AP anak kos ini belum dibikin buat bulan ini. Bikin dulu di halaman Jaringan."); return; }
+                    if (!assignedAp || !kataSandiSpesifik) { alert(`Password buat AP anak kos ini belum dibikin buat bulan ${getNamaBulanTahun(getBulanTahunKunci(new Date()))}. Bikin dulu di halaman Jaringan.`); return; }
                     pesan = `Halo ${p.nama}, makasih ya buat bayaran internet bulan ${namaBulan}.\n\nIni detail aksesnya:\nJaringan/Lokasi: *${assignedAp.namaLokasi}*\nPassword: *${kataSandiSpesifik}*\n\nPassword-nya rahasia ya. Selamat internetan!`;
                 } else {
+                    const user = auth.currentUser;
+                    const docRef = doc(db, `artifacts/${appId}/public/data/pelanggan/${id}`);
+                    const newTagihan = {
+                        adminUid: user.uid,
+                        adminName: user.displayName,
+                        timestamp: Timestamp.now()
+                    };
+                    await updateDoc(docRef, {
+                        [`statusPembayaran.${kunciBulanIni}.historyTagihan`]: arrayUnion(newTagihan)
+                    });
+
                     const biaya = p.isNewSubscriber ? state.pengaturan.biayaLanggananBaru : state.pengaturan.biayaLanggananRegular;
                     const keteranganBiaya = p.isNewSubscriber ? " (untuk 2 bulan pertama)" : "";
                     pesan = `Halo ${p.nama} (kamar ${p.kamar}), mau ngingetin bayaran internet bulan ${namaBulan} sebesar ${formatRupiah(biaya)}${keteranganBiaya}. Jangan lupa dibayar ya. Makasih.`;
@@ -1138,6 +1189,33 @@
                     `;
                 }
                 showModal(`History Bayaran: ${pelanggan.nama}`, historyHtml);
+            };
+            
+            window.openTagihanHistoryModal = (pelangganId) => {
+                const pelanggan = state.pelanggan.find(p => p.id === pelangganId);
+                if (!pelanggan) return;
+                
+                const history = pelanggan.statusPembayaran?.[state.selectedMonth]?.historyTagihan || [];
+                
+                let historyHtml = '';
+                if (history.length === 0) {
+                     historyHtml = '<p class="text-center text-gray-500 py-4">Belum pernah ditagih bulan ini.</p>';
+                } else {
+                    historyHtml = `
+                        <ul class="space-y-3">
+                            ${[...history].reverse().map(item => `
+                                <li class="flex items-start gap-4">
+                                    <div class="bg-blue-100 text-blue-600 p-2 rounded-full mt-1">${icons.bell.replace(/width=".*?"/g, 'width="20"').replace(/height=".*?"/g, 'height="20"')}</div>
+                                    <div>
+                                        <p class="font-semibold text-gray-800">${item.adminName || 'Admin'}</p>
+                                        <p class="text-sm text-gray-500">${formatTimestamp(item.timestamp)}</p>
+                                    </div>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    `;
+                }
+                showModal(`History Tagihan: ${pelanggan.nama} (${getNamaBulanTahun(state.selectedMonth)})`, historyHtml);
             };
 
             // --- LOGIKA JARINGAN & KATA SANDI ---
@@ -1357,7 +1435,7 @@
                         view: 'dashboard', user: null, isAuthorized: false, pelanggan: [], accessPoints: [],
                         pengeluaran: [], pemasukanLain: [], searchTerm: '', editId: null,
                         selectedMonth: getBulanTahunKunci(new Date()), activeDropdown: null,
-                        pelangganSort: { key: 'nama', direction: 'asc' },
+                        pelangganSort: { key: 'status', direction: 'desc' },
                         pelangganFilter: { status: 'all', apId: 'all' },
                     };
                     renderApp();
